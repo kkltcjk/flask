@@ -1,20 +1,13 @@
 #!flask/bin/python
-import multiprocessing
-import uuid
-import os
-import requests
-
 from flask import Flask
 from flask import jsonify
 from flask import abort
 from flask import make_response
 from flask import request
-
 from json_parser import JsonParser
-from yardstick.cmd.cli import YardstickCLI
+import os
 
 app = Flask(__name__)
-url_base = "http://192.168.23.2:8086/query?pretty=true&db=yardstick&q=SELECT * FROM %s WHERE task_id='%s'"
 
 @app.errorhandler(404)
 def not_found(error):
@@ -65,24 +58,10 @@ class Utils(object):
             abort(404)
 
     def dispatch_task(self, cmd, opts, args):
-        command_list = ['task']
-        command_list.append(cmd)
-	for key in opts.keys():
-            command_list.append('--' + key)
-            command_list.append(opts[key])
-        
-        command_list.append(args)
-        task_id = str(uuid.uuid4())
-        process = multiprocessing.Process(
-                target=YardstickCLI().main_api,
-                args=(command_list, task_id))
-        process.start()
-        return jsonify({'task_id': task_id})
-
-	# command = 'yardstick task'
-        # command_list = ['start']
-        # command += self._get_command(command_list, cmd, opts, args)
-        # return self._exec_command_output(command)
+	command = 'yardstick task'
+        command_list = ['start']
+        command += self._get_command(command_list, cmd, opts, args)
+        return self._exec_command_output(command)
 
 
     def dispatch_runner(self, cmd, opts, args):
@@ -112,8 +91,8 @@ class Utils(object):
 
 utils = Utils()
 
-@app.route('/api/v3/yardstick/tasks/<string:main_cmd>', methods = ['post']) 
-def tasks(main_cmd):
+@app.route('/api/v3/yardstick/<string:main_cmd>/', methods = ['post']) 
+def task(main_cmd):
 	cmd = request.json.get('cmd', '')
 	opts = request.json.get('opts', {})
 	args = request.json.get('args', '')
@@ -124,18 +103,6 @@ def tasks(main_cmd):
             return method(cmd, opts, args)
         else:
             abort(404)
-
-@app.route('/api/v3/yardstick/testresults', methods = ['get'])
-def testresults():
-    measurement = request.args.get('measurement')
-    task_id = request.args.get('task_id')
-    url = url_base % (measurement, task_id)
-    try:
-        resposne = requests.get(url)
-        result = resposne.json()
-        return jsonify(result)
-    except Exception:
-        abort(404)
 
 
 if __name__ == '__main__':
